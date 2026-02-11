@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Tic Tac Toe Multiplayer</title>
+
+<style>
+body{
+  background:#0a0a0a;
+  color:white;
+  font-family:Arial;
+  text-align:center
+}
+#board{
+  display:grid;
+  grid-template-columns:repeat(3,100px);
+  gap:6px;
+  justify-content:center;
+  margin:20px auto
+}
+.cell{
+  width:100px;height:100px;
+  background:#1f1f1f;
+  border-radius:12px;
+  font-size:48px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  cursor:pointer
+}
+.cell:hover{background:#333}
+.card{
+  display:inline-block;
+  background:#1a1a1a;
+  padding:10px 16px;
+  margin:6px;
+  border-radius:10px
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎮 TIC TAC TOE MULTIPLAYER</h1>
+
+<div class="card">Kamu: <b id="me">-</b></div>
+<div class="card">Giliran: <b id="turn">-</b></div>
+
+<div id="board"></div>
+<p id="status"></p>
+
+<!-- ================= FIREBASE RESMI (v9) ================= -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, set, update, onValue, get, child } 
+  from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+/* ================= GANTI DENGAN CONFIG KAMU ================= */
+const firebaseConfig = {
+  apiKey: "ISI_API_KEY",
+  authDomain: "PROJECT.firebaseapp.com",
+  databaseURL: "https://PROJECT-default-rtdb.firebaseio.com",
+  projectId: "PROJECT"
+};
+/* =========================================================== */
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/* ================= ROOM DARI LINK ================= */
+const params = new URLSearchParams(window.location.search);
+let roomId = params.get("room");
+
+if(!roomId){
+  roomId = Math.random().toString(36).substring(2,8);
+  window.location.search = "?room=" + roomId;
+}
+
+const roomRef = ref(db, "rooms/" + roomId);
+
+/* ================= STATE ================= */
+let board = Array(9).fill("");
+let me = "";
+let turn = "X";
+
+/* ================= JOIN ROOM ================= */
+const snap = await get(roomRef);
+
+if(!snap.exists()){
+  await set(roomRef,{
+    board:Array(9).fill(""),
+    turn:"X",
+    players:{X:true}
+  });
+  me="X";
+}else{
+  const data = snap.val();
+  if(!data.players?.O){
+    await update(roomRef,{ "players/O": true });
+    me="O";
+  }else{
+    me="👀"; // spectator
+  }
+}
+
+document.getElementById("me").innerText = me;
+
+/* ================= SYNC REALTIME ================= */
+onValue(roomRef, snapshot=>{
+  if(!snapshot.exists()) return;
+  const data = snapshot.val();
+  board = data.board;
+  turn = data.turn;
+  document.getElementById("turn").innerText = turn;
+  draw();
+});
+
+/* ================= DRAW ================= */
+function draw(){
+  const b=document.getElementById("board");
+  b.innerHTML="";
+  board.forEach((v,i)=>{
+    const c=document.createElement("div");
+    c.className="cell";
+    c.innerText=v;
+    c.onclick=()=>move(i);
+    b.appendChild(c);
+  });
+}
+
+/* ================= MOVE ================= */
+function move(i){
+  if(me!==turn) return;
+  if(board[i]!=="" || me==="👀") return;
+
+  board[i]=me;
+  update(roomRef,{
+    board:board,
+    turn: me==="X"?"O":"X"
+  });
+}
+</script>
+
+</body>
+</html>
+
+
