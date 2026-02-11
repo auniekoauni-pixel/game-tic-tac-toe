@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Tic Tac Toe Chaos Tournament</title>
+
+<style>
+body{
+  background:#0a0a0a;
+  color:white;
+  font-family:Arial;
+  text-align:center
+}
+#board{
+  position:relative;
+  display:grid;
+  grid-template-columns:repeat(3,100px);
+  gap:6px;
+  justify-content:center;
+  margin:20px auto
+}
+.cell{
+  width:100px;height:100px;
+  background:#1f1f1f;
+  border-radius:12px;
+  font-size:48px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  cursor:pointer
+}
+.cell:hover{background:#333}
+#line{
+  position:absolute;
+  background:red;
+  height:6px;
+  width:0;
+  border-radius:5px;
+  transform-origin:left
+}
+.card{
+  display:inline-block;
+  background:#1a1a1a;
+  padding:10px 16px;
+  margin:6px;
+  border-radius:10px
+}
+#trophy{font-size:60px;margin-top:10px}
+button{
+  padding:10px 18px;
+  border:none;
+  border-radius:8px;
+  background:crimson;
+  color:white;
+  cursor:pointer
+}
+</style>
+</head>
+
+<body>
+
+<h1>🔥 TIC TAC TOE CHAOS TOURNAMENT 🔥</h1>
+
+<div>
+  <div class="card">👤 Kamu: <b id="sx">0</b></div>
+  <div class="card">🤖 AI: <b id="so">0</b></div>
+  <div class="card">🎯 Ronde: <b id="round">1</b>/3</div>
+  <div class="card">⏱️ <b id="timer">6</b></div>
+</div>
+
+<div id="trophy"></div>
+<div id="board"><div id="line"></div></div>
+<p id="status"></p>
+<button onclick="location.reload()">Reset</button>
+
+<script>
+// ================= CONFIG
+const TURN_TIME = 6;
+const MAX_ROUND = 3;
+const LOCKED_COUNT = 2;
+
+// ================= STATE
+let board,current="X",gameOver=false;
+let scoreX=0,scoreO=0,round=1;
+let timer,timeLeft;
+let locked=[];
+
+// ================= CHALLENGE
+const challenges=[
+ {q:"Apa warna awan?",a:"putih"},
+ {q:"Hewan yang suka keju?",a:"tikus"},
+ {q:"2 + 5 = ?",a:"7"},
+ {q:"Huruf pertama alfabet?",a:"a"},
+];
+
+function preChallenge(){
+  let c=challenges[Math.floor(Math.random()*challenges.length)];
+  let start=Date.now();
+  let ans=prompt("🎯 TANTANGAN!\n"+c.q);
+  let t=(Date.now()-start)/1000;
+  current = (ans && ans.toLowerCase().trim()==c.a && t<=5) ? "X":"O";
+  alert(current==="X"?"✅ Kamu mulai":"❌ AI mulai");
+}
+
+// ================= START
+preChallenge();
+startRound();
+
+function startRound(){
+  board=Array(9).fill("");
+  gameOver=false;
+  locked=[];
+  while(locked.length<LOCKED_COUNT){
+    let r=Math.floor(Math.random()*9);
+    if(!locked.includes(r)) locked.push(r);
+  }
+  draw();
+  update();
+  startTimer();
+  if(current==="O") aiMove();
+}
+
+// ================= TIMER
+function startTimer(){
+  clearInterval(timer);
+  timeLeft=TURN_TIME;
+  document.getElementById("timer").innerText=timeLeft;
+  timer=setInterval(()=>{
+    timeLeft--;
+    document.getElementById("timer").innerText=timeLeft;
+    if(timeLeft<=0){
+      clearInterval(timer);
+      skipTurn("⏰ Waktu habis!");
+    }
+  },1000);
+}
+
+function skipTurn(msg){
+  if(gameOver) return;
+  alert(msg);
+  switchP();
+  update();
+  startTimer();
+  if(current==="O") aiMove();
+}
+
+// ================= DRAW
+function draw(){
+  const b=document.getElementById("board");
+  b.innerHTML='<div id="line"></div>';
+  board.forEach((v,i)=>{
+    let c=document.createElement("div");
+    c.className="cell";
+    c.innerText=v;
+    c.onclick=()=>move(i);
+    b.appendChild(c);
+  });
+}
+
+// ================= MOVE
+function move(i){
+  if(gameOver) return;
+
+  if(locked.includes(i)){
+    skipTurn("💥 Kotak terkunci!");
+    return;
+  }
+
+  if(board[i]!=="" && board[i]!==current){
+    duel(i);
+    return;
+  }
+
+  if(board[i]!=="") return;
+
+  board[i]=current;
+  endTurn();
+}
+
+// ================= DUEL
+function duel(i){
+  let a=Math.floor(Math.random()*9)+1;
+  let b=Math.floor(Math.random()*9)+1;
+  let start=Date.now();
+  let ans=prompt(`⚔️ DUEL!\n${a} + ${b} = ?`);
+  let t=(Date.now()-start)/1000;
+
+  if(parseInt(ans)===a+b && t<=3){
+    alert("🔥 Menang duel!");
+    board[i]=current;
+  }else{
+    alert("❌ Kalah duel!");
+    switchP();
+  }
+  endTurn();
+}
+
+// ================= END TURN
+function endTurn(){
+  draw();
+  let w=check();
+  if(w){
+    drawLine(w);
+    endRound(current);
+    return;
+  }
+  if(board.every(x=>x!="")){
+    gameOver=true;
+    setTimeout(nextRound,800);
+    return;
+  }
+  switchP();
+  update();
+  startTimer();
+  if(current==="O") aiMove();
+}
+
+// ================= SMART AI
+function aiMove(){
+  setTimeout(()=>{
+    let i =
+      findWinningMove("O") ||
+      findWinningMove("X") ||
+      (board[4]==="" && !locked.includes(4) ? 4 : null) ||
+      pickCorner() ||
+      pickRandom();
+
+    if(i!==null) move(i);
+  },500);
+}
+
+function findWinningMove(p){
+  const w=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for(let x of w){
+    let v=x.map(i=>board[i]);
+    if(v.filter(z=>z===p).length===2){
+      let i=x.find(i=>board[i]==="" && !locked.includes(i));
+      if(i!==undefined) return i;
+    }
+  }
+  return null;
+}
+
+function pickCorner(){
+  let c=[0,2,6,8].filter(i=>board[i]==="" && !locked.includes(i));
+  return c.length ? c[Math.floor(Math.random()*c.length)] : null;
+}
+
+function pickRandom(){
+  let o=board.map((v,i)=>i).filter(i=>board[i]==="" && !locked.includes(i));
+  return o.length ? o[Math.floor(Math.random()*o.length)] : null;
+}
+
+// ================= ROUND END
+function endRound(w){
+  gameOver=true;
+  clearInterval(timer);
+  w==="X"?scoreX++:scoreO++;
+  sx.innerText=scoreX;
+  so.innerText=scoreO;
+  setTimeout(nextRound,1200);
+}
+
+function nextRound(){
+  if(scoreX==2||scoreO==2||round==MAX_ROUND){finish();return;}
+  round++;
+  document.getElementById("round").innerText=round;
+  preChallenge();
+  startRound();
+}
+
+// ================= FINISH
+function finish(){
+  document.getElementById("trophy").innerText =
+    scoreX>scoreO ? "👑🏆 KAMU JUARA!" : "🤖👑 AI JUARA!";
+  status.innerText="TURNAMEN SELESAI";
+}
+
+// ================= UTIL
+function switchP(){current=current==="X"?"O":"X";}
+function update(){status.innerText="Giliran: "+(current==="X"?"KAMU":"AI");}
+function check(){
+  const w=[[0,1,2,"h",0],[3,4,5,"h",1],[6,7,8,"h",2],
+           [0,3,6,"v",0],[1,4,7,"v",1],[2,5,8,"v",2],
+           [0,4,8,"d",0],[2,4,6,"d",1]];
+  return w.find(x=>board[x[0]]&&board[x[0]]==board[x[1]]&&board[x[1]]==board[x[2]]);
+}
+function drawLine(w){
+  let l=line;
+  l.style.width="300px";
+  if(w[3]=="h") l.style.top=`${50+w[4]*106}px`;
+  if(w[3]=="v"){l.style.transform="rotate(90deg)";l.style.left=`${50+w[4]*106}px`;}
+  if(w[3]=="d"){
+    l.style.transform=w[4]==0?"rotate(45deg)":"rotate(-45deg)";
+    l.style.width="420px";l.style.top="150px";l.style.left="-60px";
+  }
+}
+</script>
+
+</body>
+</html>
+
+
+
